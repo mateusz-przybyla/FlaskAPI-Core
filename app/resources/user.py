@@ -15,6 +15,8 @@ blp = Blueprint("user", __name__, description="Operations on users")
 @blp.route("/register")
 class UserRegister(MethodView):
     @blp.arguments(UserSchema)
+    @blp.response(201, description="User created successfully.")
+    @blp.alt_response(409, description="A user with that email already exists.")
     def post(self, user_data):
         if UserModel.query.filter(UserModel.email == user_data['email']).first():
             abort(409, message="A user with that email already exists.")
@@ -30,49 +32,56 @@ class UserRegister(MethodView):
         except SQLAlchemyError:
             abort(500, message="An error occurred while creating the user.")
 
-        return {"message": "User created successfully."}, 201
+        return {"message": "User created successfully."}
         
 @blp.route("/login")
 class UserLogin(MethodView):
     @blp.arguments(UserSchema)
+    @blp.response(200, description="User logged in successfully.")
+    @blp.alt_response(401, description="Invalid credentials.")
     def post(self, user_data):
         user = UserModel.query.filter(UserModel.email == user_data['email']).first()
 
         if user and sha256.verify(user_data['password'], user.password):
             access_token = create_access_token(identity=str(user.id), fresh=True)
             refresh_token = create_refresh_token(identity=str(user.id))
-            return {"access_token": access_token, "refresh_token": refresh_token}, 200
+            return {"access_token": access_token, "refresh_token": refresh_token}
 
         abort(401, message="Invalid credentials.")
 
 @blp.route("/logout")
 class UserLogout(MethodView):
     @jwt_required()
+    @blp.response(200, description="User logged out successfully.")
     def post(self):
         jti = get_jwt()['jti']
         BLOCKLIST.add(jti)
-        return {"message": "Successfully logged out."}, 200
+        return {"message": "Successfully logged out."}
     
 @blp.route("/refresh")
 class TokenRefresh(MethodView):
     @jwt_required(refresh=True)
+    @blp.response(200, description="Access token refreshed successfully.")
     def post(self):
         current_user = get_jwt_identity()
         new_token = create_access_token(identity=current_user, fresh=False)
 
         # Make it clear that when to add the refresh token to the blocklist will depend on the app design
-        jti = get_jwt()["jti"]
+        jti = get_jwt()['jti']
         BLOCKLIST.add(jti)
-        return {"access_token": new_token}, 200
+        return {"access_token": new_token}
 
 # dev endpoints to view and delete users    
-@blp.route("/user/<int:user_id>")
+@blp.route("/users/<int:user_id>")
 class User(MethodView):
-    @blp.response(200, UserSchema)
+    @blp.response(200, UserSchema, description="User details retrieved successfully.")
+    @blp.alt_response(404, description="User not found.")
     def get(self, user_id):
         user = UserModel.query.get_or_404(user_id)
         return user
     
+    @blp.response(200, description="User deleted successfully.")
+    @blp.alt_response(404, description="User not found.")
     def delete(self, user_id):
         user = UserModel.query.get_or_404(user_id)
 
@@ -82,4 +91,4 @@ class User(MethodView):
         except SQLAlchemyError:
             abort(500, message="An error occurred while deleting the user.")
 
-        return {"message": "User deleted."}, 200
+        return {"message": "User deleted."}
