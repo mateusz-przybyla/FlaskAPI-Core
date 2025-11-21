@@ -138,7 +138,7 @@ docker-compose down
 
 ## Database Schema
 
-![](/readme/database_schema.jpg)
+![](/readme/database-schema.jpg)
 
 ---
 
